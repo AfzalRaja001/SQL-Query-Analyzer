@@ -1,0 +1,159 @@
+# Exhaustive Technical Roadmap: SQL Query Analyzer & Optimization Benchmarking System
+
+This roadmap provides a comprehensive, step-by-step developer guide to implementing the complete system, from zero to deployment.
+
+---
+
+## Phase 1: Project Initialization & Infrastructure
+
+### 1.1 Backend Setup (Node.js & Express)
+- **Directory**: `mkdir server && cd server`
+- **Init**: `npm init -y`
+- **Dependencies**: `npm install express cors dotenv helmet morgan @prisma/client pg`
+- **Dev Dependencies**: `npm install -D typescript @types/node @types/express @types/cors ts-node-dev`
+- **TypeScript Config**: Run `npx tsc --init`. Set `"outDir": "./dist"`, `"rootDir": "./src"`.
+
+### 1.2 Prisma ORM & Target Database Setup
+- **PostgreSQL**: Ensure a local PostgreSQL instance is running.
+- **Init Prisma**: `npx prisma init`
+- **Database Architecture**: Create an admin database instance `queryanalyzer`.
+- **Target DB Security (CRITICAL)**: Create a strictly isolated `readonly_user` role directly in Postgres:
+  ```sql
+  CREATE ROLE readonly_user WITH LOGIN PASSWORD 'strong_password';
+  GRANT CONNECT ON DATABASE queryanalyzer TO readonly_user;
+  GRANT USAGE ON SCHEMA public TO readonly_user;
+  GRANT SELECT ON ALL TABLES IN SCHEMA public TO readonly_user;
+  ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO readonly_user;
+  ```
+- **Environment Variables**:
+  - `DATABASE_URL` (Admin use for Prisma storing metadata)
+  - `TARGET_DB_URL` (readonly_user use for executing user queries safely)
+
+### 1.3 Frontend Initialization (Next.js)
+- **Create Next App**: `npx create-next-app@latest client --typescript --tailwind --eslint --app`
+- **Dependencies**: `npm install @monaco-editor/react recharts lucide-react axios clsx tailwind-merge zustand @tanstack/react-query`
+- **UI Component Library**: `npx shadcn@latest init`
+
+---
+
+## Phase 2: Core Execution Engine & Safety Layer
+
+### 2.1 Backend API Shell (`src/index.ts`)
+- Setup Express app with CORS, JSON parsing, and basic error-handling middleware.
+- Create modular router structure `/api/v1/queries`.
+
+### 2.2 Safe Execution Controller (`POST /execute`)
+- **Validation**: Ensure `req.body.query` exists and is a string. Check for basic obvious blacklisted commands like `DROP` or `DELETE` using regex (as a first line of defense before the DB roles).
+- **Execution Script**:
+  - Import `Client` from `pg`.
+  - Connect using `TARGET_DB_URL`.
+  - **Crucial**: Set an execution timeout per-connection: `await client.query("SET statement_timeout = '10s';");`
+  - Wrap query execution in a try/catch, recording `performance.now()` before and after to get precise ms timing.
+
+### 2.3 Frontend SQL Editor Component (`app/components/SqlEditor.tsx`)
+- Implement `@monaco-editor/react`. Configure theme: `vs-dark`, language: `sql`.
+- Add global state using `zustand` to persist the active editor text.
+- Build the "Run" button with loading spinners handling the `axios.post` call to `/execute`.
+
+---
+
+## Phase 3: EXPLAIN Plan Parsing & Database Storage
+
+### 3.1 Fetching PostgreSQL JSON Plan
+- Modify the `/execute` controller. If `req.body.analyze === true`, prefix the user query: `EXPLAIN (ANALYZE, FORMAT JSON) ${userQuery};`.
+- Receive deeply nested JSON root starting at: `result.rows[0]["QUERY PLAN"][0].Plan`.
+
+### 3.2 Recursive Parser Utility
+- Create `utils/planParser.ts`.
+- Function `parseNode(node)`: Maps generic Postgres keys to a standard TypeScript interface:
+  - `"Node Type"` -> `nodeType`
+  - `"Total Cost"` -> `totalCost`
+  - `"Plan Rows"` -> `estimatedRows`
+  - `"Actual Total Time"` -> `actualTimeMs`
+- Recursively call `parseNode` on any object inside `node["Plans"]`.
+
+### 3.3 Prisma Persistence
+- Following execution and parsing, instantiate a Prisma transaction to save the execution history record.
+- Use `prisma.query.create()` to record the raw SQL text, the `totalCost`, the `rowCount`, and the full parsed JSON node tree. Return the `Query.id`.
+
+---
+
+## Phase 4: Execution Plan Visualization (The Tree)
+
+### 4.1 Recursive `<PlanNode />` Component
+- Build a React component tracking a `ParsedNode` prop.
+- Render a Tailwind card displaying `nodeType` at the top, followed by small stat badges (Cost, Rows, Time).
+- **Conditional Styling**:
+  - `totalCost > 1000` ? Apply `border-red-500 bg-red-50`.
+  - `nodeType === 'Seq Scan'` ? Apply `border-yellow-500 bg-yellow-50` (Warning).
+  - `nodeType === 'Index Scan'` ? Apply `border-green-500 bg-green-50`.
+
+### 4.2 Interactive Rendering
+- Within `<PlanNode />`, map over `node.children` and recursively render `<PlanNode>` inside a nested `div` with a left border (`border-l-2 ml-4 pl-4`) to visually simulate a tree structure.
+- Add "Collapse/Expand" toggles utilizing standard React `useState(true)`.
+
+---
+
+## Phase 5: Optimization Suggestion Engine (Rule-Based)
+
+### 5.1 Code-Level Rules (Regex Analysis)
+- Build a service `OptimizationEngine`. Function `analyzeQueryString(sql)`:
+  - Regex test `/\bSELECT\s+\*/i`. Push Warning: `"Avoid using SELECT *. Specify exact columns to minimize network and memory overhead."`
+  - Regex test `/\bWHERE\b/i`. If missing in large tables, push Warning: `"No WHERE clause detected; query will scan entire table."`
+
+### 5.2 Tree-Level Rules (Performance Analysis)
+- Function `analyzePlanTree(parsedRoot)`: Flatten the tree for linear iteration.
+- Loop flattened nodes:
+  - **Sequential Scan on Large Data**: If `nodeType === 'Seq Scan'` AND `estimatedRows > 1000`, push `"Sequential scanning massive row limits. Indexing highly recommended."`
+  - **Expensive Loops**: If `nodeType === 'Nested Loop'` AND `actualLoops > 10000`, push `"Nested loop executed too many times. Investigate join conditions."`
+  - **Cost Dominator**: Calculate tree total cost. Flag any single node contributing `>70%` of the `totalCost`.
+
+### 5.3 Persisting Suggestions
+- Execute `prisma.optimizationSuggestion.createMany()` mapping the suggestions array to the parent `Query.id`.
+- Return to the frontend to render sequentially in a "Suggestions" sidebar.
+
+---
+
+## Phase 6: Query Benchmarking System
+
+### 6.1 Backend Benchmark Endpoints (`POST /benchmark`)
+- Receive `{ query, iterations }` (iterations limit capped at 50 max to prevent server lockup).
+- Run a simple `for` loop executing the query via the `TARGET_DB_URL` client. Avoid running `EXPLAIN` to prevent skewing pure micro-benchmark execution load.
+- Record array of `timeMs`.
+- Math logic: calculate `avgTimeMs`, `minTimeMs`, `maxTimeMs`; remove statistical outliers if necessary.
+- Push execution metrics to DB: `prisma.benchmark.create()`.
+
+### 6.2 Frontend Bar chart Visualization
+- Create `/benchmark` page. Left side: Editor. Right Side: Charts.
+- Use `Recharts` `<BarChart>` or `<LineChart>` to map `[ { iteration: 1, time: 42ms }, { iteration: 2, time: 39ms } ]`.
+
+---
+
+## Phase 7: History & Query Comparison Dashboards
+
+### 7.1 Historical Logging App (`GET /history`)
+- Dedicated `/` root Dashboard.
+- Fetch `prisma.query.findMany({ orderBy: { executionTimeMs: 'desc' }, take: 100 })` to prominently display inherently slow queries to the user for targeting.
+- Render in a Shadcn/UI Data Table.
+
+### 7.2 Diff-Comparison Setup (`POST /compare`)
+- Frontend `/compare` page features splitting the screen tightly into Left / Right Monaco editors.
+- Executing fires parallel calls to the analyzer engine.
+- Renders the resulting Tree Visuals side-by-side.
+- Computes percentage diff: `Math.abs(CostA - CostB) / ((CostA + CostB)/2) * 100`.
+
+---
+
+## Phase 8: Advanced Implementations
+
+### A. Dynamic Index Recommendation System
+- When tree-traversing, target nodes with `nodeType === 'Seq Scan'` or generic nodes with populated `Filter` keys.
+- Write a sub-parser tracking `Filter` string structures (e.g. `(id = 5)` means the column is `id`).
+- Construct and output fully contextual DDL script suggestions: `CREATE INDEX CONCURRENTLY idx_table_col ON schema.table (col);`.
+
+### B. Query Rewriting Engine
+- Simple regex replacement matching. E.g. detecting IN-subqueries: `WHERE col IN (SELECT col FROM map)` -> Output a code-snippet refactoring to use `INNER JOIN`.
+- Expose via a frontend "Rewrite Code" button.
+
+### C. Large Dataset Generator API
+- Build `POST /api/generate-mock` route using `faker.js` utility loops inside a Prisma transaction to batch insert `10,000` to `100,000` records quickly across a mocked schema specifically designed to showcase inefficient `SELECT *` querying.
