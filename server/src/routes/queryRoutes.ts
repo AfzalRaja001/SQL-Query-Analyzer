@@ -1,4 +1,5 @@
 import { Router, Request, Response } from "express";
+import { executeQuery } from "../controllers/queryController";
 
 const router = Router();
 
@@ -16,14 +17,9 @@ router.get("/health", (_req: Request, res: Response) => {
 
 /**
  * POST /api/v1/queries/execute
- * Placeholder 
+ * Executes a SQL query safely against the target database.
  */
-router.post("/execute", (_req: Request, res: Response) => {
-  res.status(501).json({
-    success: false,
-    message: "Execute endpoint not yet implemented.",
-  });
-});
+router.post("/execute", executeQuery);
 
 /**
  * POST /api/v1/queries/benchmark
