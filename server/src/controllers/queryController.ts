@@ -8,7 +8,7 @@ import { validateQuery } from "../services/queryValidator";
  */
 export async function executeQuery(req: Request, res: Response): Promise<void> {
   // Step 1: Extract and validate the query
-  const { query } = req.body;
+  const { query, analyze } = req.body;
 
   const validation = validateQuery(query);
   if (!validation.isValid) {
@@ -32,7 +32,17 @@ export async function executeQuery(req: Request, res: Response): Promise<void> {
 
     const executionTimeMs = parseFloat((endTime - startTime).toFixed(3));
 
-    // Step 4: Return structured response with data and metrics
+    // Step 4: Optionally execute EXPLAIN if analyze is true
+    let executionPlan = null;
+    if (analyze) {
+      const explainQuery = `EXPLAIN (ANALYZE, FORMAT JSON) ${query}`;
+      const explainResult = await client.query(explainQuery);
+      if (explainResult.rows.length > 0 && explainResult.rows[0]["QUERY PLAN"]) {
+        executionPlan = explainResult.rows[0]["QUERY PLAN"][0].Plan;
+      }
+    }
+
+    // Step 5: Return structured response with data and metrics
     res.json({
       success: true,
       data: result.rows,
@@ -42,6 +52,7 @@ export async function executeQuery(req: Request, res: Response): Promise<void> {
         name: f.name,
         dataType: f.dataTypeID,
       })),
+      executionPlan,
     });
   } catch (error: unknown) {
     // Handle specific PostgreSQL errors 
@@ -71,7 +82,7 @@ export async function executeQuery(req: Request, res: Response): Promise<void> {
       error: pgError.message || "An unexpected error occurred during query execution.",
     });
   } finally {
-    // Step 5: Always disconnect the client to free the connection
+    // Step 6: Always disconnect the client to free the connection
     if (client) {
       await client.end();
     }
