@@ -10,36 +10,37 @@ import { errorHandler } from "./middleware/errorHandler";
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = 5001; // Only one declaration!
 
-// Security headers (XSS protection, content-type sniffing, etc.)
-app.use(helmet());
-
-// Enable Cross-Origin requests so the Next.js frontend (port 3000) can talk to this API (port 5000)
-app.use(cors());
-
-// Parse incoming JSON request bodies
-app.use(express.json());
-
-// HTTP request logger — prints every incoming request to the console for debugging
+// 1. Security & Logging
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(morgan("dev"));
 
+// 2. CORS - Allow port 3000 to talk to 5001
+app.use(cors({
+  origin: "http://localhost:3000",
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  credentials: true
+}));
 
-// Mount the query router at /api/v1/queries
+// 3. Body Parsing
+app.use(express.json());
+
+// 4. Routes
 app.use("/api/v1/queries", queryRoutes);
 
-// Root health check
 app.get("/", (_req, res) => {
   res.json({
     success: true,
-    message: "SQL Query Analyzer API is running!",
+    message: "SQL Query Analyzer API is running on Port 5001!",
     version: "1.0.0",
   });
 });
 
 app.use(errorHandler);
 
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
-  console.log(`API available at http://localhost:${PORT}/api/v1/queries`);
+// 5. Start Server
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`🚀 Server ready at http://localhost:${PORT}`);
+  console.log(`📊 API available at http://localhost:${PORT}/api/v1/queries`);
 });
