@@ -10,10 +10,10 @@ import { errorHandler } from "./middleware/errorHandler";
 dotenv.config();
 
 const app = express();
-const PORT = 5001; // Only one declaration!
+const PORT = 5001;
 
 // 1. Security & Logging
-app.use(helmet({ contentSecurityPolicy: false }));
+app.use(helmet());
 app.use(morgan("dev"));
 
 // 2. CORS - Allow port 3000 to talk to 5001
