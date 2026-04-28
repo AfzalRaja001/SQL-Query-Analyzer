@@ -14,13 +14,12 @@ type Suggestion = {
   sql?: string;
 };
 
-// Placeholder content — the backend optimization engine lands in Phase 5.
-// The panel is already wired to render real suggestions when the API exposes them.
+// Placeholder (only used if nothing is passed at all)
 const PLACEHOLDER: Suggestion[] = [
   {
     sev: "info",
     title: "Optimization engine pending",
-    body: "Rule-based suggestions will surface here once the backend engine lands. Expect flags for Seq Scans on large tables, missing indices inferred from Filter clauses, and SELECT * warnings.",
+    body: "Run Analyze to generate query optimization suggestions.",
     category: "Info",
   },
 ];
@@ -45,6 +44,22 @@ const toneMap: Record<
     bg: "bg-[var(--sev-danger-bg)]",
   },
 };
+
+/**
+ * 🔧 Enhance suggestions (logic only, no UI changes)
+ */
+function enhanceSuggestions(items: Suggestion[]): Suggestion[] {
+  return items.map((s) => {
+    // Auto-fill simple optimization if missing
+    if (!s.sql && s.title.toLowerCase().includes("select *")) {
+      return {
+        ...s,
+        sql: "SELECT column1, column2 FROM table_name;",
+      };
+    }
+    return s;
+  });
+}
 
 function SuggestionItem({
   s,
@@ -95,17 +110,20 @@ function SuggestionItem({
             {s.category}
           </span>
         </div>
+
         <p
           className="mt-1.5 text-[12.5px] text-muted-foreground leading-[1.55]"
           style={{ textWrap: "pretty" }}
         >
           {s.body}
         </p>
+
         {s.sql && (
           <div className="mt-2.5 flex flex-wrap items-center gap-2">
             <code className="font-mono text-[11.5px] bg-muted text-foreground px-2.5 py-[5px] rounded-md">
               {s.sql}
             </code>
+
             <button
               type="button"
               onClick={copy}
@@ -129,11 +147,18 @@ function SuggestionItem({
 }
 
 export function SuggestionsPanel({
-  items = PLACEHOLDER,
+  items,
 }: {
   items?: Suggestion[];
 }) {
-  if (!items.length) {
+  // If backend sends nothing → empty array
+  const safeItems = items ?? [];
+
+  // Enhance suggestions (logic layer)
+  const processed = enhanceSuggestions(safeItems);
+
+  // Empty state (NO placeholder spam)
+  if (processed.length === 0) {
     return (
       <div className="py-12 text-center text-sm text-muted-foreground">
         No suggestions for this query.
@@ -143,8 +168,8 @@ export function SuggestionsPanel({
 
   return (
     <div className="py-2">
-      {items.map((s, i) => (
-        <SuggestionItem key={i} s={s} last={i === items.length - 1} />
+      {processed.map((s, i) => (
+        <SuggestionItem key={i} s={s} last={i === processed.length - 1} />
       ))}
     </div>
   );

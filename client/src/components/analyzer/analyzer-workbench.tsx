@@ -230,8 +230,12 @@ export function AnalyzerWorkbench() {
               )}
             </TabsContent>
 
-            <TabsContent value="suggestions">
-              <SuggestionsPanel />
+              <TabsContent value="suggestions">
+                {isSuccess ? (
+                <SuggestionsPanel items={result.suggestions ?? []} />
+                  ) : (
+                <SuggestionsPanel items={[]} />
+              )}
             </TabsContent>
           </CardContent>
         </Tabs>

@@ -36,6 +36,14 @@ export interface ExecuteSuccess {
   executionTimeMs: number;
   fields: QueryField[];
   executionPlan: PlanNode | null;
+
+  suggestions?: {
+    sev: "warning" | "info" | "danger";
+    title: string;
+    body: string;
+    category: string;
+    sql?: string;
+  }[];
 }
 
 export interface ExecuteError {
