@@ -11,3 +11,12 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+model Query {
+  id             Int      @id @default(autoincrement())
+  sqlText        String
+  executionTimeMs Int?
+  rowCount       Int?
+  isFavorite     Boolean  @default(false)
+  planJson       Json?
+  createdAt      DateTime @default(now())
+}
