@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useQueryStore } from "@/lib/store"; // ✅ NEW
 
 type Severity = "warning" | "info" | "danger";
 
@@ -14,15 +13,6 @@ type Suggestion = {
   category: string;
   sql?: string;
 };
-
-const PLACEHOLDER: Suggestion[] = [
-  {
-    sev: "info",
-    title: "Optimization engine pending",
-    body: "Run Analyze to generate query optimization suggestions.",
-    category: "Info",
-  },
-];
 
 const toneMap: Record<
   Severity,
@@ -45,127 +35,80 @@ const toneMap: Record<
   },
 };
 
-function enhanceSuggestions(items: Suggestion[]): Suggestion[] {
-  return items.map((s) => {
-    if (!s.sql && s.title.toLowerCase().includes("select *")) {
-      return {
-        ...s,
-        sql: "SELECT column1, column2 FROM table_name;",
-      };
-    }
-    return s;
-  });
-}
+/* ================= MAIN CARD ================= */
 
-function SuggestionItem({
-  s,
-  last,
-}: {
-  s: Suggestion;
-  last: boolean;
-}) {
+function FinalSuggestion({ s }: { s: Suggestion }) {
   const tone = toneMap[s.sev];
   const [copied, setCopied] = useState(false);
 
-  const { setQuery } = useQueryStore(); // ✅ NEW
-
   async function copy() {
     if (!s.sql) return;
-    try {
-      await navigator.clipboard.writeText(s.sql);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1200);
-    } catch {}
-  }
-
-  function applySuggestion() {
-    if (!s.sql) return;
-    setQuery(s.sql);
+    await navigator.clipboard.writeText(s.sql);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1200);
   }
 
   return (
-    <div
-      className={cn(
-        "flex gap-[14px] px-4 py-[14px]",
-        !last && "border-b border-border"
-      )}
-    >
-      <span
-        className={cn(
-          "mt-1.5 h-2 w-2 shrink-0 rounded-full",
-          tone.dot
-        )}
-      />
-      <div className="flex-1 min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[13px] font-semibold tracking-[-0.005em]">
-            {s.title}
-          </span>
-          <span
-            className={cn(
-              "text-[9.5px] uppercase tracking-[0.14em] font-medium px-[7px] py-0.5 rounded",
-              tone.bg,
-              tone.fg
-            )}
-          >
-            {s.category}
-          </span>
-        </div>
+    <div className="mb-4 rounded-lg border border-border bg-card p-4">
+      <div className="flex items-center gap-2 mb-2">
+        <span className={cn("h-2 w-2 rounded-full", tone.dot)} />
+        <span className="text-sm font-semibold">Optimized Query</span>
+        <span className="text-[10px] px-2 py-0.5 rounded bg-[var(--sev-accent-bg)] text-[var(--sev-accent)] ml-auto">
+          FINAL
+        </span>
+      </div>
 
-        <p
-          className="mt-1.5 text-[12.5px] text-muted-foreground leading-[1.55]"
-          style={{ textWrap: "pretty" }}
+      <p className="text-xs text-muted-foreground mb-3">
+        Best version of your query after applying optimizations.
+      </p>
+
+      <div className="flex items-center gap-2 flex-wrap">
+        <code className="font-mono text-[12px] bg-muted px-3 py-2 rounded-md">
+          {s.sql}
+        </code>
+
+        <button
+          onClick={copy}
+          className="text-xs text-muted-foreground hover:text-foreground"
         >
-          {s.body}
-        </p>
-
-        {s.sql && (
-          <div className="mt-2.5 flex flex-wrap items-center gap-2">
-            <code className="font-mono text-[11.5px] bg-muted text-foreground px-2.5 py-[5px] rounded-md">
-              {s.sql}
-            </code>
-
-            {/* COPY */}
-            <button
-              type="button"
-              onClick={copy}
-              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground px-2.5 py-1 rounded-md hover:bg-muted transition-colors"
-            >
-              {copied ? (
-                <>
-                  <Check className="h-3 w-3" /> Copied
-                </>
-              ) : (
-                <>
-                  <Copy className="h-3 w-3" /> Copy
-                </>
-              )}
-            </button>
-
-            {/* 🔥 APPLY BUTTON */}
-            <button
-              type="button"
-              onClick={applySuggestion}
-              className="inline-flex items-center gap-1 text-[11px] text-foreground px-2.5 py-1 rounded-md bg-muted hover:bg-muted/80 transition-colors"
-            >
-              Apply
-            </button>
-          </div>
-        )}
+          {copied ? "Copied" : "Copy"}
+        </button>
       </div>
     </div>
   );
 }
+
+/* ================= ISSUE LIST ================= */
+
+function IssueItem({ s }: { s: Suggestion }) {
+  const tone = toneMap[s.sev];
+
+  return (
+    <div className="flex gap-3 py-3 border-b border-border last:border-none">
+      <span className={cn("mt-1.5 h-2 w-2 rounded-full", tone.dot)} />
+      <div>
+        <div className="text-sm font-medium">{s.title}</div>
+        <div className="text-xs text-muted-foreground mt-1">
+          {s.body}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ================= MAIN PANEL ================= */
 
 export function SuggestionsPanel({
   items,
 }: {
   items?: Suggestion[];
 }) {
-  const safeItems = items ?? [];
-  const processed = enhanceSuggestions(safeItems);
+  const safe = items ?? [];
 
-  if (processed.length === 0) {
+  const final = safe.find((s) => s.title === "Optimized Query");
+  const issues = safe.filter((s) => s.title !== "Optimized Query");
+
+  if (!safe.length) {
     return (
       <div className="py-12 text-center text-sm text-muted-foreground">
         No suggestions for this query.
@@ -175,9 +118,23 @@ export function SuggestionsPanel({
 
   return (
     <div className="py-2">
-      {processed.map((s, i) => (
-        <SuggestionItem key={i} s={s} last={i === processed.length - 1} />
-      ))}
+
+      {/* 🔥 FINAL CLEAN CARD */}
+      {final && <FinalSuggestion s={final} />}
+
+      {/* 🔻 ISSUES (minimal) */}
+      {issues.length > 0 && (
+        <div className="rounded-lg border border-border bg-card px-4">
+          <div className="text-xs uppercase text-muted-foreground py-3">
+            Issues detected
+          </div>
+
+          {issues.map((s, i) => (
+            <IssueItem key={i} s={s} />
+          ))}
+        </div>
+      )}
+
     </div>
   );
 }
