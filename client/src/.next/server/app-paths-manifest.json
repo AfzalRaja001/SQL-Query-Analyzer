@@ -1,0 +1,4 @@
+{
+  "/benchmark/page": "app/benchmark/page.js",
+  "/api/v1/queries/benchmark/route": "app/api/v1/queries/benchmark/route.js"
+}
