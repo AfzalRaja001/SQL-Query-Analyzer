@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useQueryStore } from "@/lib/store"; // ✅ NEW
 
 type Severity = "warning" | "info" | "danger";
 
@@ -14,7 +15,6 @@ type Suggestion = {
   sql?: string;
 };
 
-// Placeholder (only used if nothing is passed at all)
 const PLACEHOLDER: Suggestion[] = [
   {
     sev: "info",
@@ -45,12 +45,8 @@ const toneMap: Record<
   },
 };
 
-/**
- * 🔧 Enhance suggestions (logic only, no UI changes)
- */
 function enhanceSuggestions(items: Suggestion[]): Suggestion[] {
   return items.map((s) => {
-    // Auto-fill simple optimization if missing
     if (!s.sql && s.title.toLowerCase().includes("select *")) {
       return {
         ...s,
@@ -71,15 +67,20 @@ function SuggestionItem({
   const tone = toneMap[s.sev];
   const [copied, setCopied] = useState(false);
 
+  const { setQuery } = useQueryStore(); // ✅ NEW
+
   async function copy() {
     if (!s.sql) return;
     try {
       await navigator.clipboard.writeText(s.sql);
       setCopied(true);
       setTimeout(() => setCopied(false), 1200);
-    } catch {
-      /* ignore */
-    }
+    } catch {}
+  }
+
+  function applySuggestion() {
+    if (!s.sql) return;
+    setQuery(s.sql);
   }
 
   return (
@@ -124,6 +125,7 @@ function SuggestionItem({
               {s.sql}
             </code>
 
+            {/* COPY */}
             <button
               type="button"
               onClick={copy}
@@ -139,6 +141,15 @@ function SuggestionItem({
                 </>
               )}
             </button>
+
+            {/* 🔥 APPLY BUTTON */}
+            <button
+              type="button"
+              onClick={applySuggestion}
+              className="inline-flex items-center gap-1 text-[11px] text-foreground px-2.5 py-1 rounded-md bg-muted hover:bg-muted/80 transition-colors"
+            >
+              Apply
+            </button>
           </div>
         )}
       </div>
@@ -151,13 +162,9 @@ export function SuggestionsPanel({
 }: {
   items?: Suggestion[];
 }) {
-  // If backend sends nothing → empty array
   const safeItems = items ?? [];
-
-  // Enhance suggestions (logic layer)
   const processed = enhanceSuggestions(safeItems);
 
-  // Empty state (NO placeholder spam)
   if (processed.length === 0) {
     return (
       <div className="py-12 text-center text-sm text-muted-foreground">
