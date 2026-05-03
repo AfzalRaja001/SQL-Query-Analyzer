@@ -35,9 +35,15 @@ const toneMap: Record<
   },
 };
 
-/* ================= MAIN CARD ================= */
+/* Final optimized query card */
 
-function FinalSuggestion({ s }: { s: Suggestion }) {
+function FinalSuggestion({
+  s,
+  onApply,
+}: {
+  s: Suggestion;
+  onApply?: (sql: string) => void;
+}) {
   const tone = toneMap[s.sev];
   const [copied, setCopied] = useState(false);
 
@@ -46,6 +52,11 @@ function FinalSuggestion({ s }: { s: Suggestion }) {
     await navigator.clipboard.writeText(s.sql);
     setCopied(true);
     setTimeout(() => setCopied(false), 1200);
+  }
+
+  function apply() {
+    if (!s.sql) return;
+    onApply?.(s.sql);
   }
 
   return (
@@ -69,16 +80,31 @@ function FinalSuggestion({ s }: { s: Suggestion }) {
 
         <button
           onClick={copy}
-          className="text-xs text-muted-foreground hover:text-foreground"
+          className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition"
         >
-          {copied ? "Copied" : "Copy"}
+          {copied ? (
+            <>
+              <Check className="h-3 w-3 inline" /> Copied
+            </>
+          ) : (
+            <>
+              <Copy className="h-3 w-3 inline" /> Copy
+            </>
+          )}
+        </button>
+
+        <button
+          onClick={apply}
+          className="text-xs px-3 py-1.5 rounded-md bg-black text-white hover:opacity-90 transition"
+        >
+          Apply
         </button>
       </div>
     </div>
   );
 }
 
-/* ================= ISSUE LIST ================= */
+/* Issue list item */
 
 function IssueItem({ s }: { s: Suggestion }) {
   const tone = toneMap[s.sev];
@@ -96,12 +122,14 @@ function IssueItem({ s }: { s: Suggestion }) {
   );
 }
 
-/* ================= MAIN PANEL ================= */
+/* Main panel */
 
 export function SuggestionsPanel({
   items,
+  onApply,
 }: {
   items?: Suggestion[];
+  onApply?: (sql: string) => void;
 }) {
   const safe = items ?? [];
 
@@ -118,11 +146,8 @@ export function SuggestionsPanel({
 
   return (
     <div className="py-2">
+      {final && <FinalSuggestion s={final} onApply={onApply} />}
 
-      {/* 🔥 FINAL CLEAN CARD */}
-      {final && <FinalSuggestion s={final} />}
-
-      {/* 🔻 ISSUES (minimal) */}
       {issues.length > 0 && (
         <div className="rounded-lg border border-border bg-card px-4">
           <div className="text-xs uppercase text-muted-foreground py-3">
@@ -134,7 +159,6 @@ export function SuggestionsPanel({
           ))}
         </div>
       )}
-
     </div>
   );
 }
