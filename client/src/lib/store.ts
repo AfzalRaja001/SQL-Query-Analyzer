@@ -5,8 +5,10 @@ import { create } from "zustand";
 interface QueryState {
   query: string;
   analyze: boolean;
+  activeConnectionId: string | null;
   setQuery: (q: string) => void;
   setAnalyze: (a: boolean) => void;
+  setActiveConnectionId: (id: string | null) => void;
 }
 
 const DEFAULT_QUERY = `SELECT table_schema, table_name, table_type
@@ -17,6 +19,8 @@ LIMIT 10;`;
 export const useQueryStore = create<QueryState>((set) => ({
   query: DEFAULT_QUERY,
   analyze: true,
+  activeConnectionId: null,
   setQuery: (query) => set({ query }),
   setAnalyze: (analyze) => set({ analyze }),
+  setActiveConnectionId: (activeConnectionId) => set({ activeConnectionId }),
 }));

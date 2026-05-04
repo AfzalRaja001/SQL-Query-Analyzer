@@ -42,11 +42,11 @@ import { cn } from "@/lib/utils";
 type Tab = "results" | "plan" | "suggestions";
 
 export function AnalyzerWorkbench() {
-  const { query, analyze, setQuery, setAnalyze } = useQueryStore();
+  const { query, analyze, activeConnectionId, setQuery, setAnalyze } = useQueryStore();
   const [tab, setTab] = useState<Tab>("results");
 
   const mutation = useMutation<ExecuteResponse, Error, { analyze: boolean }>({
-    mutationFn: ({ analyze }) => executeQuery(query, analyze),
+    mutationFn: ({ analyze }) => executeQuery(query, analyze, activeConnectionId),
   });
 
   const result = mutation.data;

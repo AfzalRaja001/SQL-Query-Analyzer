@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import { listConnections } from "@/lib/api";
+import { useQueryStore } from "@/lib/store";
 import {
   LayoutDashboard,
   Terminal,
@@ -10,6 +13,7 @@ import {
   History,
   Database,
   BookOpen,
+  Link2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -26,10 +30,18 @@ const NAV: NavItem[] = [
   { href: "/benchmark", label: "Benchmark", icon: Gauge, ready: false },
   { href: "/compare", label: "Compare", icon: GitCompareArrows, ready: false },
   { href: "/history", label: "History", icon: History, ready: false },
+  { href: "/connections", label: "Connections", icon: Link2, ready: true },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { activeConnectionId } = useQueryStore();
+  const { data: connections = [] } = useQuery({
+    queryKey: ["connections"],
+    queryFn: listConnections,
+    staleTime: 30_000,
+  });
+  const activeConn = connections.find((c) => c.id === activeConnectionId);
 
   return (
     <aside className="hidden md:flex w-60 shrink-0 flex-col border-r border-border bg-sidebar text-sidebar-foreground">
@@ -106,18 +118,24 @@ export function Sidebar() {
         </div>
         <div className="flex items-center gap-2 text-xs">
           <span
-            className="h-1.5 w-1.5 rounded-full bg-[var(--sev-accent)]"
-            style={{
-              boxShadow:
-                "0 0 0 3px color-mix(in oklab, var(--sev-accent) 18%, transparent)",
-            }}
+            className={cn(
+              "h-1.5 w-1.5 rounded-full shrink-0",
+              activeConn ? "bg-sky-400" : "bg-[var(--sev-accent)]"
+            )}
+            style={
+              !activeConn
+                ? { boxShadow: "0 0 0 3px color-mix(in oklab, var(--sev-accent) 18%, transparent)" }
+                : undefined
+            }
           />
-          <span className="font-mono text-[11.5px] text-foreground">
-            readonly_user
+          <span className="font-mono text-[11.5px] text-foreground truncate">
+            {activeConn ? activeConn.name : "Default DB"}
           </span>
         </div>
-        <div className="mt-1 font-mono text-[10px] text-muted-foreground">
-          postgres · queryanalyzer
+        <div className="mt-1 font-mono text-[10px] text-muted-foreground truncate">
+          {activeConn
+            ? `${activeConn.username}@${activeConn.host}/${activeConn.database}`
+            : "readonly_user · queryanalyzer"}
         </div>
       </div>
     </aside>

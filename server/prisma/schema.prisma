@@ -10,4 +10,18 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Connection {
+  id         String    @id @default(cuid())
+  name       String
+  host       String
+  port       Int       @default(5432)
+  database   String
+  username   String
+  secretEnc  String
+  sslMode    String    @default("prefer")
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
 }

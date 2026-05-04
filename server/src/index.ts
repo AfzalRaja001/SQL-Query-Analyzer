@@ -5,9 +5,16 @@ import morgan from "morgan";
 import dotenv from "dotenv";
 
 import queryRoutes from "./routes/queryRoutes";
+import connectionRoutes from "./routes/connectionRoutes";
 import { errorHandler } from "./middleware/errorHandler";
 
 dotenv.config();
+
+if (!process.env.CONNECTION_ENC_KEY || process.env.CONNECTION_ENC_KEY.length !== 64) {
+  console.error("FATAL: CONNECTION_ENC_KEY is missing or not a 64-char hex string.");
+  console.error("Generate one with: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"");
+  process.exit(1);
+}
 
 const app = express();
 const PORT = 5001;
@@ -28,6 +35,7 @@ app.use(express.json());
 
 // 4. Routes
 app.use("/api/v1/queries", queryRoutes);
+app.use("/api/v1/connections", connectionRoutes);
 
 app.get("/", (_req, res) => {
   res.json({

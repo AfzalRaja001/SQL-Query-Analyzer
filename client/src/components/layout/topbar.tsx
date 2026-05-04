@@ -2,9 +2,9 @@
 
 import { usePathname } from "next/navigation";
 
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ThemeToggle } from "./theme-toggle";
+import { ConnectionPicker } from "./connection-picker";
 
 const TITLES: Record<string, { title: string; subtitle: string }> = {
   "/": {
@@ -49,10 +49,7 @@ export function Topbar() {
         </p>
       </div>
       <div className="ml-auto flex items-center gap-3">
-        <Badge variant="success" className="normal-case tracking-normal font-normal">
-          <span className="h-1.5 w-1.5 rounded-full bg-[var(--sev-accent)]" />
-          API connected
-        </Badge>
+        <ConnectionPicker />
         <Separator orientation="vertical" className="h-[18px]" />
         <span className="font-mono text-[11px] text-muted-foreground">
           v0.1.0

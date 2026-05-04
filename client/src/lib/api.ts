@@ -47,17 +47,69 @@ export type ExecuteResponse = ExecuteSuccess | ExecuteError;
 
 export async function executeQuery(
   query: string,
-  analyze: boolean
+  analyze: boolean,
+  connectionId?: string | null
 ): Promise<ExecuteResponse> {
   try {
     const { data } = await api.post<ExecuteResponse>("/queries/execute", {
       query,
       analyze,
+      ...(connectionId ? { connectionId } : {}),
     });
     return data;
   } catch (err) {
     const e = err as { response?: { data?: ExecuteError }; message?: string };
     if (e.response?.data) return e.response.data;
     return { success: false, error: e.message || "Network error" };
+  }
+}
+
+// ── Connections ──────────────────────────────────────────────────────────────
+
+export interface Connection {
+  id: string;
+  name: string;
+  host: string;
+  port: number;
+  database: string;
+  username: string;
+  sslMode: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+}
+
+export interface CreateConnectionInput {
+  name: string;
+  host: string;
+  port: number;
+  database: string;
+  username: string;
+  password: string;
+  sslMode?: string;
+}
+
+export async function listConnections(): Promise<Connection[]> {
+  const { data } = await api.get<{ success: true; data: Connection[] }>("/connections");
+  return data.data;
+}
+
+export async function createConnection(input: CreateConnectionInput): Promise<Connection> {
+  const { data } = await api.post<{ success: true; data: Connection }>("/connections", input);
+  return data.data;
+}
+
+export async function deleteConnection(id: string): Promise<void> {
+  await api.delete(`/connections/${id}`);
+}
+
+export async function testConnection(id: string): Promise<{ ok: boolean; latencyMs?: number; error?: string }> {
+  try {
+    const { data } = await api.post<{ success: boolean; latencyMs?: number; error?: string }>(
+      `/connections/${id}/test`
+    );
+    return { ok: data.success, latencyMs: data.latencyMs, error: data.error };
+  } catch (err) {
+    const e = err as { response?: { data?: { error?: string } }; message?: string };
+    return { ok: false, error: e.response?.data?.error ?? e.message ?? "Test failed" };
   }
 }
