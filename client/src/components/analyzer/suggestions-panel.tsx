@@ -14,17 +14,6 @@ type Suggestion = {
   sql?: string;
 };
 
-// Placeholder content — the backend optimization engine lands in Phase 5.
-// The panel is already wired to render real suggestions when the API exposes them.
-const PLACEHOLDER: Suggestion[] = [
-  {
-    sev: "info",
-    title: "Optimization engine pending",
-    body: "Rule-based suggestions will surface here once the backend engine lands. Expect flags for Seq Scans on large tables, missing indices inferred from Filter clauses, and SELECT * warnings.",
-    category: "Info",
-  },
-];
-
 const toneMap: Record<
   Severity,
   { dot: string; fg: string; bg: string }
@@ -46,94 +35,108 @@ const toneMap: Record<
   },
 };
 
-function SuggestionItem({
+/* Final optimized query card */
+
+function FinalSuggestion({
   s,
-  last,
+  onApply,
 }: {
   s: Suggestion;
-  last: boolean;
+  onApply?: (sql: string) => void;
 }) {
   const tone = toneMap[s.sev];
   const [copied, setCopied] = useState(false);
 
   async function copy() {
     if (!s.sql) return;
-    try {
-      await navigator.clipboard.writeText(s.sql);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1200);
-    } catch {
-      /* ignore */
-    }
+    await navigator.clipboard.writeText(s.sql);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1200);
+  }
+
+  function apply() {
+    if (!s.sql) return;
+    onApply?.(s.sql);
   }
 
   return (
-    <div
-      className={cn(
-        "flex gap-[14px] px-4 py-[14px]",
-        !last && "border-b border-border"
-      )}
-    >
-      <span
-        className={cn(
-          "mt-1.5 h-2 w-2 shrink-0 rounded-full",
-          tone.dot
-        )}
-      />
-      <div className="flex-1 min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[13px] font-semibold tracking-[-0.005em]">
-            {s.title}
-          </span>
-          <span
-            className={cn(
-              "text-[9.5px] uppercase tracking-[0.14em] font-medium px-[7px] py-0.5 rounded",
-              tone.bg,
-              tone.fg
-            )}
-          >
-            {s.category}
-          </span>
-        </div>
-        <p
-          className="mt-1.5 text-[12.5px] text-muted-foreground leading-[1.55]"
-          style={{ textWrap: "pretty" }}
+    <div className="mb-4 rounded-lg border border-border bg-card p-4">
+      <div className="flex items-center gap-2 mb-2">
+        <span className={cn("h-2 w-2 rounded-full", tone.dot)} />
+        <span className="text-sm font-semibold">Optimized Query</span>
+        <span className="text-[10px] px-2 py-0.5 rounded bg-[var(--sev-accent-bg)] text-[var(--sev-accent)] ml-auto">
+          FINAL
+        </span>
+      </div>
+
+      <p className="text-xs text-muted-foreground mb-3">
+        Best version of your query after applying optimizations.
+      </p>
+
+      <div className="flex items-center gap-2 flex-wrap">
+        <code className="font-mono text-[12px] bg-muted px-3 py-2 rounded-md">
+          {s.sql}
+        </code>
+
+        <button
+          onClick={copy}
+          className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition"
         >
-          {s.body}
-        </p>
-        {s.sql && (
-          <div className="mt-2.5 flex flex-wrap items-center gap-2">
-            <code className="font-mono text-[11.5px] bg-muted text-foreground px-2.5 py-[5px] rounded-md">
-              {s.sql}
-            </code>
-            <button
-              type="button"
-              onClick={copy}
-              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground px-2.5 py-1 rounded-md hover:bg-muted transition-colors"
-            >
-              {copied ? (
-                <>
-                  <Check className="h-3 w-3" /> Copied
-                </>
-              ) : (
-                <>
-                  <Copy className="h-3 w-3" /> Copy
-                </>
-              )}
-            </button>
-          </div>
-        )}
+          {copied ? (
+            <>
+              <Check className="h-3 w-3 inline" /> Copied
+            </>
+          ) : (
+            <>
+              <Copy className="h-3 w-3 inline" /> Copy
+            </>
+          )}
+        </button>
+
+        <button
+          onClick={apply}
+          className="text-xs px-3 py-1.5 rounded-md bg-black text-white hover:opacity-90 transition"
+        >
+          Apply
+        </button>
       </div>
     </div>
   );
 }
 
+/* Issue list item */
+
+function IssueItem({ s }: { s: Suggestion }) {
+  const tone = toneMap[s.sev];
+
+  return (
+    <div className="flex gap-3 py-3 border-b border-border last:border-none">
+      <span className={cn("mt-1.5 h-2 w-2 rounded-full", tone.dot)} />
+      <div>
+        <div className="text-sm font-medium">{s.title}</div>
+        <div className="text-xs text-muted-foreground mt-1">
+          {s.body}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* Main panel */
+
 export function SuggestionsPanel({
-  items = PLACEHOLDER,
+  items,
+  onApply,
 }: {
   items?: Suggestion[];
+  onApply?: (sql: string) => void;
 }) {
-  if (!items.length) {
+  const safe = items ?? [];
+
+  const final = safe.find((s) => s.title === "Optimized Query");
+  const issues = safe.filter((s) => s.title !== "Optimized Query");
+
+  if (!safe.length) {
     return (
       <div className="py-12 text-center text-sm text-muted-foreground">
         No suggestions for this query.
@@ -143,9 +146,19 @@ export function SuggestionsPanel({
 
   return (
     <div className="py-2">
-      {items.map((s, i) => (
-        <SuggestionItem key={i} s={s} last={i === items.length - 1} />
-      ))}
+      {final && <FinalSuggestion s={final} onApply={onApply} />}
+
+      {issues.length > 0 && (
+        <div className="rounded-lg border border-border bg-card px-4">
+          <div className="text-xs uppercase text-muted-foreground py-3">
+            Issues detected
+          </div>
+
+          {issues.map((s, i) => (
+            <IssueItem key={i} s={s} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -229,9 +229,15 @@ export function AnalyzerWorkbench() {
                 <EmptyState />
               )}
             </TabsContent>
-
             <TabsContent value="suggestions">
-              <SuggestionsPanel />
+              {isSuccess ? (
+                <SuggestionsPanel
+                  items={result.suggestions ?? []}
+                  onApply={(sql) => setQuery(sql)}
+                />
+              ) : (
+                <SuggestionsPanel items={[]} />
+              )}
             </TabsContent>
           </CardContent>
         </Tabs>
