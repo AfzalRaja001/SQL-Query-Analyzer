@@ -102,8 +102,8 @@ export async function executeQuery(
       });
     }
 
-    // 🔥 LIMIT suggestion (only if large result)
-    if (!/limit\s+\d+/i.test(query) && result.rowCount > 50) {
+    // 🔥 LIMIT suggestion (only if large SELECT result)
+    if (/^\s*select\b/i.test(query) && !/limit\s+\d+/i.test(query) && (result.rows.length > 50)) {
       const limited = addLimitIfMissing(query);
 
       suggestions.push({
@@ -137,14 +137,11 @@ export async function executeQuery(
         const column = extractColumnFromFilter(filter);
         if (!column) return;
 
-        const indexSQL = `CREATE INDEX idx_${table}_${column} ON ${table}(${column});`;
-
         suggestions.push({
           sev: "warning",
           title: "Sequential Scan detected",
-          body: `Table "${table}" is fully scanned due to filter on "${column}". Consider adding an index.`,
+          body: `Table "${table}" is fully scanned due to filter on "${column}". Consider: CREATE INDEX idx_${table}_${column} ON ${table}(${column});`,
           category: "Performance",
-          sql: indexSQL,
         });
       });
     }
@@ -157,7 +154,9 @@ export async function executeQuery(
       optimizedQuery = rewriteSelectStar(optimizedQuery, columnNames);
     }
 
-    optimizedQuery = addLimitIfMissing(optimizedQuery);
+    if (/^\s*select\b/i.test(optimizedQuery)) {
+      optimizedQuery = addLimitIfMissing(optimizedQuery);
+    }
 
     if (optimizedQuery !== query) {
       suggestions.push({

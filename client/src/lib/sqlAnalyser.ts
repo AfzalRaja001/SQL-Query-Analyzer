@@ -38,13 +38,20 @@ export function analyzeSQL(query: string): Suggestion[] {
 }
 
 function runSelectStarRule(ast: any, suggestions: Suggestion[], query: string) {
-  if (ast.columns === "*") {
+  const hasStar =
+    Array.isArray(ast.columns) &&
+    ast.columns.some(
+      (col: any) =>
+        col.expr?.type === "star" ||
+        (col.expr?.type === "column_ref" && col.expr.column === "*")
+    );
+
+  if (hasStar) {
     suggestions.push({
       sev: "warning",
       title: "Avoid SELECT *",
       body: "Fetching all columns increases I/O and slows queries.",
       category: "Performance",
-      sql: query.replace("*", "id, name"), // simple rewrite
     });
   }
 }

@@ -170,6 +170,6 @@ function generateSelectReplacement(query: string, tables: string[]): string {
     return query.replace(/\*/g, `${tables[0]}.*`);
   }
 
-  // multiple tables → avoid ambiguity
-  return tables.map((t) => `${t}.*`).join(", ");
+  // multiple tables → prefix each table to avoid ambiguity
+  return query.replace(/\*/g, tables.map((t) => `${t}.*`).join(", "));
 }
