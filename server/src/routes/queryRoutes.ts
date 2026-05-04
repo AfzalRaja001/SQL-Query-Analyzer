@@ -1,5 +1,7 @@
 import { Router, Request, Response } from "express";
 import { executeQuery } from "../controllers/queryController";
+import compareRouter from "./compare";
+import historyRouter from "./history";
 
 const router = Router();
 
@@ -33,25 +35,13 @@ router.post("/benchmark", (_req: Request, res: Response) => {
 });
 
 /**
- * POST /api/v1/queries/compare
- * Placeholder .
+ * Mount compare routes
  */
-router.post("/compare", (_req: Request, res: Response) => {
-  res.status(501).json({
-    success: false,
-    message: "Compare endpoint not yet implemented.",
-  });
-});
+router.use("/compare", compareRouter);
 
 /**
- * GET /api/v1/queries/history
- * Placeholder.
+ * Mount history routes
  */
-router.get("/history", (_req: Request, res: Response) => {
-  res.status(501).json({
-    success: false,
-    message: "History endpoint not yet implemented.",
-  });
-});
+router.use("/history", historyRouter);
 
 export default router;

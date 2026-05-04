@@ -25,3 +25,12 @@ model Connection {
   createdAt  DateTime  @default(now())
   lastUsedAt DateTime?
 }
+model Query {
+  id             Int      @id @default(autoincrement())
+  sqlText        String
+  executionTimeMs Int?
+  rowCount       Int?
+  isFavorite     Boolean  @default(false)
+  planJson       Json?
+  createdAt      DateTime @default(now())
+}
