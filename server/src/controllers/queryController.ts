@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { performance } from "perf_hooks";
-import type { PoolClient } from "pg";
+import { Pool, type PoolClient } from "pg";
 import { getTargetClient } from "../db/targetDb";
 import { validateQuery } from "../services/queryValidator";
 import { withSafeClient } from "../services/safeRun";
@@ -8,6 +8,25 @@ import { dbFindConnection, dbTouchConnection } from "../db/adminDb";
 import { decrypt } from "../services/encryption";
 import { getOrCreatePool } from "../services/connectionPool";
 import { analyzeSQL } from "../services/sqlAnalyzer";
+
+/**
+ * Dedicated pool for the QueryLab history database.
+ * Uses the DATABASE_URL from your .env file.
+ */
+
+import url from "url";
+
+const params = url.parse(process.env.DATABASE_URL || "");
+const auth = params.auth?.split(":") || [];
+
+const historyDbPool = new Pool({
+  user: auth[0],
+  password: auth[1],
+  host: params.hostname || "localhost",
+  port: parseInt(params.port || "5432"),
+  database: params.pathname?.split("/")[1] || "querylab", // Forces querylab if parsing fails
+  ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false
+});
 
 /* ================= HELPERS ================= */
 
@@ -50,6 +69,7 @@ function addLimitIfMissing(query: string, limit = 100): string {
 
 /** POST /api/v1/queries/execute */
 export async function executeQuery(req: Request, res: Response): Promise<void> {
+  console.log("🚀 ANALYZER ROUTE HIT!"); // <--- ADD THIS
   const { query, analyze, connectionId } = req.body;
 
   const validation = validateQuery(query);
@@ -58,7 +78,6 @@ export async function executeQuery(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  // client is either a pg.Client (default path) or pg.PoolClient (BYO-DB path)
   let cleanup: (() => Promise<void>) | null = null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let client: any = null;
@@ -87,7 +106,7 @@ export async function executeQuery(req: Request, res: Response): Promise<void> {
     } else {
       const targetClient = await getTargetClient();
       client = targetClient;
-      cleanup = async () => { await targetClient.end().catch(() => {}); };
+      cleanup = async () => { await targetClient.end().catch(() => { }); };
     }
 
     const { rows, rowCount, fields, executionPlan, executionTimeMs } =
@@ -114,16 +133,27 @@ export async function executeQuery(req: Request, res: Response): Promise<void> {
       });
 
     if (connectionId) {
-      dbTouchConnection(connectionId).catch(() => {});
+      dbTouchConnection(connectionId).catch(() => { });
+    }
+
+    /* ================= PERSIST TO HISTORY ================= */
+    // Log the query to the history table before processing suggestions
+    try {
+      await historyDbPool.query(
+        "INSERT INTO history (sql_text, execution_time_ms, row_count, created_at) VALUES ($1, $2, $3, NOW())",
+        [query, executionTimeMs, rowCount || 0]
+      );
+      console.log("✅ Analyzer execution saved to history table.");
+    } catch (saveErr) {
+      console.error("⚠️ History save failed (non-blocking):", saveErr);
+      // We do not return an error to the user; the analyzer results are more important.
     }
 
     /* ================= SUGGESTIONS ================= */
 
     let suggestions = analyze ? analyzeSQL(query) : [];
-
     const columnNames = fields.map((f: any) => f.name);
 
-    // SELECT * rewrite suggestion
     if (/\bselect\s+\*/i.test(query) && columnNames.length > 0) {
       const rewritten = rewriteSelectStar(query, columnNames);
       suggestions.push({
@@ -135,7 +165,6 @@ export async function executeQuery(req: Request, res: Response): Promise<void> {
       });
     }
 
-    // LIMIT suggestion (only for large SELECT results)
     if (/^\s*select\b/i.test(query) && !/limit\s+\d+/i.test(query) && rows.length > 50) {
       const limited = addLimitIfMissing(query);
       suggestions.push({
@@ -147,26 +176,19 @@ export async function executeQuery(req: Request, res: Response): Promise<void> {
       });
     }
 
-    // Seq Scan detection
     if (analyze && executionPlan) {
       const seqScans = findSeqScans(executionPlan);
-
       seqScans.forEach((node) => {
         const table = node["Relation Name"];
         const filter = node["Filter"];
-
-        if (!table || table.startsWith("pg_") || table.includes("information_schema")) {
-          return;
-        }
+        if (!table || table.startsWith("pg_") || table.includes("information_schema")) return;
         if (!filter) return;
-
         const column = extractColumnFromFilter(filter);
         if (!column) return;
-
         suggestions.push({
           sev: "warning",
           title: "Sequential Scan detected",
-          body: `Table "${table}" is fully scanned due to filter on "${column}". Consider: CREATE INDEX idx_${table}_${column} ON ${table}(${column});`,
+          body: `Table "${table}" is fully scanned due to filter on "${column}". Consider an index.`,
           category: "Performance",
         });
       });
@@ -175,15 +197,12 @@ export async function executeQuery(req: Request, res: Response): Promise<void> {
     /* ================= FINAL OPTIMIZED QUERY ================= */
 
     let optimizedQuery = query;
-
     if (/\bselect\s+\*/i.test(optimizedQuery) && columnNames.length > 0) {
       optimizedQuery = rewriteSelectStar(optimizedQuery, columnNames);
     }
-
     if (/^\s*select\b/i.test(optimizedQuery)) {
       optimizedQuery = addLimitIfMissing(optimizedQuery);
     }
-
     if (optimizedQuery !== query) {
       suggestions.push({
         sev: "warning",
@@ -226,9 +245,7 @@ export async function executeQuery(req: Request, res: Response): Promise<void> {
 
     res.status(500).json({
       success: false,
-      error:
-        pgError.message ||
-        "An unexpected error occurred during query execution.",
+      error: pgError.message || "An unexpected error occurred during query execution.",
     });
   } finally {
     if (cleanup) await cleanup();
