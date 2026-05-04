@@ -1,6 +1,11 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
+import {
+  BarChart as ReBarChart, Bar,
+  LineChart as ReLineChart, Line, ReferenceLine,
+  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
+} from "recharts";
 import AppShell from "./AppShell";
 
 interface BenchmarkResult {
@@ -16,169 +21,51 @@ function fmt(n: number) {
   return n % 1 === 0 ? String(n) : n.toFixed(1);
 }
 
-/* ── tiny Chart.js hook ───────────────────────────────────────── */
-function useChartJs() {
-  const [ready, setReady] = useState(false);
-  useEffect(() => {
-    if ((window as any).Chart) { setReady(true); return; }
-    const s = document.createElement("script");
-    s.src = "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js";
-    s.onload = () => setReady(true);
-    document.head.appendChild(s);
-  }, []);
-  return ready;
-}
+const tickStyle = { fill: "#444", fontSize: 10, fontFamily: "'JetBrains Mono', monospace" };
 
 /* ── Bar chart component ─────────────────────────────────────── */
 function BarChart({ history, avg }: { history: number[]; avg: number }) {
-  const ref = useRef<HTMLCanvasElement>(null);
-  const chartRef = useRef<any>(null);
-  const chartReady = useChartJs();
-
-  useEffect(() => {
-    if (!chartReady || !ref.current) return;
-    const Chart = (window as any).Chart;
-    if (chartRef.current) chartRef.current.destroy();
-
-    const labels = history.map((_, i) => i + 1);
-    const tickFont = { family: "'JetBrains Mono', monospace", size: 10 };
-    const gridColor = "#1e1e1e";
-    const tickColor = "#444";
-
-    chartRef.current = new Chart(ref.current, {
-      type: "bar",
-      data: {
-        labels,
-        datasets: [{
-          data: history,
-          backgroundColor: "#22d3ee",
-          borderRadius: 3,
-          borderSkipped: "bottom",
-        }],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            backgroundColor: "#1c1c1c",
-            borderColor: "#2a2a2a",
-            borderWidth: 1,
-            titleColor: "#555",
-            bodyColor: "#22d3ee",
-            titleFont: tickFont,
-            bodyFont: tickFont,
-            callbacks: {
-              title: (items: any[]) => `Run #${items[0].label}`,
-              label: (item: any) => `${fmt(item.raw)} ms`,
-            },
-          },
-        },
-        scales: {
-          x: { grid: { color: gridColor }, ticks: { color: tickColor, font: tickFont, maxTicksLimit: 20 }, border: { display: false } },
-          y: { grid: { color: gridColor }, ticks: { color: tickColor, font: tickFont, callback: (v: any) => `${v}ms` }, border: { display: false } },
-        },
-      },
-      plugins: [{
-        id: "refLine",
-        afterDraw(chart: any) {
-          const { ctx, scales: { y }, chartArea } = chart;
-          const yPx = y.getPixelForValue(avg);
-          ctx.save();
-          ctx.strokeStyle = "#818cf8";
-          ctx.lineWidth = 1.5;
-          ctx.setLineDash([4, 4]);
-          ctx.beginPath();
-          ctx.moveTo(chartArea.left, yPx);
-          ctx.lineTo(chartArea.right, yPx);
-          ctx.stroke();
-          ctx.restore();
-        },
-      }],
-    });
-    return () => { chartRef.current?.destroy(); };
-  }, [chartReady, history, avg]);
-
+  const data = history.map((ms, i) => ({ run: i + 1, ms }));
   return (
-    <div style={{ position: "relative", width: "100%", height: 200 }}>
-      <canvas ref={ref} role="img" aria-label="Bar chart of per-iteration execution time" />
-    </div>
+    <ResponsiveContainer width="100%" height={200}>
+      <ReBarChart data={data} barCategoryGap="20%">
+        <CartesianGrid vertical={false} stroke="#1e1e1e" />
+        <XAxis dataKey="run" tick={tickStyle} axisLine={false} tickLine={false} />
+        <YAxis tick={tickStyle} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}ms`} width={45} />
+        <Tooltip
+          contentStyle={{ background: "#1c1c1c", border: "1px solid #2a2a2a", borderRadius: 6, fontSize: 11 }}
+          labelStyle={{ color: "#555" }}
+          itemStyle={{ color: "#22d3ee" }}
+          formatter={(v) => [`${fmt(v as number)} ms`, "time"]}
+          labelFormatter={(l) => `Run #${l}`}
+        />
+        <ReferenceLine y={avg} stroke="#818cf8" strokeDasharray="4 4" strokeWidth={1.5} />
+        <Bar dataKey="ms" fill="#22d3ee" radius={[3, 3, 0, 0]} />
+      </ReBarChart>
+    </ResponsiveContainer>
   );
 }
 
 /* ── Line chart component ────────────────────────────────────── */
 function LineChart({ history, avg }: { history: number[]; avg: number }) {
-  const ref = useRef<HTMLCanvasElement>(null);
-  const chartRef = useRef<any>(null);
-  const chartReady = useChartJs();
-
-  useEffect(() => {
-    if (!chartReady || !ref.current) return;
-    const Chart = (window as any).Chart;
-    if (chartRef.current) chartRef.current.destroy();
-
-    const labels = history.map((_, i) => i + 1);
-    const tickFont = { family: "'JetBrains Mono', monospace", size: 10 };
-
-    chartRef.current = new Chart(ref.current, {
-      type: "line",
-      data: {
-        labels,
-        datasets: [
-          {
-            label: "avg",
-            data: history.map(() => avg),
-            borderColor: "#818cf8",
-            borderWidth: 1.5,
-            borderDash: [4, 3],
-            pointRadius: 0,
-            tension: 0,
-          },
-          {
-            label: "time",
-            data: history,
-            borderColor: "#818cf8",
-            borderWidth: 2,
-            pointRadius: 3,
-            pointBackgroundColor: "#818cf8",
-            pointHoverRadius: 5,
-            tension: 0.4,
-            fill: false,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            backgroundColor: "#1c1c1c",
-            borderColor: "#2a2a2a",
-            borderWidth: 1,
-            titleColor: "#555",
-            titleFont: tickFont,
-            bodyFont: tickFont,
-            callbacks: {
-              title: (items: any[]) => `Run #${items[0].label}`,
-              label: (item: any) => `${item.dataset.label}: ${fmt(item.raw)} ms`,
-            },
-          },
-        },
-        scales: {
-          x: { grid: { color: "#1e1e1e" }, ticks: { color: "#444", font: tickFont, maxTicksLimit: 20 }, border: { display: false } },
-          y: { grid: { color: "#1e1e1e" }, ticks: { color: "#444", font: tickFont, callback: (v: any) => `${v}ms` }, border: { display: false } },
-        },
-      },
-    });
-    return () => { chartRef.current?.destroy(); };
-  }, [chartReady, history, avg]);
-
+  const data = history.map((ms, i) => ({ run: i + 1, ms }));
   return (
-    <div style={{ position: "relative", width: "100%", height: 200 }}>
-      <canvas ref={ref} role="img" aria-label="Line chart of execution time trend with average baseline" />
-    </div>
+    <ResponsiveContainer width="100%" height={200}>
+      <ReLineChart data={data}>
+        <CartesianGrid stroke="#1e1e1e" />
+        <XAxis dataKey="run" tick={tickStyle} axisLine={false} tickLine={false} />
+        <YAxis tick={tickStyle} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}ms`} width={45} />
+        <Tooltip
+          contentStyle={{ background: "#1c1c1c", border: "1px solid #2a2a2a", borderRadius: 6, fontSize: 11 }}
+          labelStyle={{ color: "#555" }}
+          itemStyle={{ color: "#818cf8" }}
+          formatter={(v) => [`${fmt(v as number)} ms`, "time"]}
+          labelFormatter={(l) => `Run #${l}`}
+        />
+        <ReferenceLine y={avg} stroke="#818cf8" strokeDasharray="4 3" strokeWidth={1.5} label={{ value: "avg", fill: "#818cf8", fontSize: 10 }} />
+        <Line type="monotone" dataKey="ms" stroke="#818cf8" strokeWidth={2} dot={{ r: 3, fill: "#818cf8" }} activeDot={{ r: 5 }} />
+      </ReLineChart>
+    </ResponsiveContainer>
   );
 }
 

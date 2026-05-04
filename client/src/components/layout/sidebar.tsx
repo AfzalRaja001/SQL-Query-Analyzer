@@ -27,9 +27,9 @@ type NavItem = {
 const NAV: NavItem[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard, ready: false },
   { href: "/analyze", label: "Analyzer", icon: Terminal, ready: true },
-  { href: "/benchmark", label: "Benchmark", icon: Gauge, ready: false },
-  { href: "/compare", label: "Compare", icon: GitCompareArrows, ready: false },
-  { href: "/history", label: "History", icon: History, ready: false },
+  { href: "/benchmark", label: "Benchmark", icon: Gauge, ready: true },
+  { href: "/compare", label: "Compare", icon: GitCompareArrows, ready: true },
+  { href: "/history", label: "History", icon: History, ready: true },
   { href: "/connections", label: "Connections", icon: Link2, ready: true },
 ];
 
