@@ -13,19 +13,19 @@ const MODULES = [
     num: "02",
     title: "Benchmark",
     desc: "Loop a query N times, get min / avg / max with variance.",
-    available: false,
+    available: true,
   },
   {
     num: "03",
     title: "Compare",
     desc: "Two editors, two plans, one diff. Pick the winner.",
-    available: false,
+    available: true,
   },
   {
     num: "04",
     title: "History",
     desc: "Every execution, searchable, favoritable.",
-    available: false,
+    available: true,
   },
 ];
 

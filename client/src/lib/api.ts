@@ -195,16 +195,21 @@ export async function getHistory(params: {
   limit?: number;
   offset?: number;
 }): Promise<{ data: HistoryItem[]; meta: HistoryMeta }> {
+  // CHANGE THIS LINE
   const { data } = await api.get<{ success: true; data: HistoryItem[]; meta: HistoryMeta }>(
-    "/queries/history",
+    "/history", // <--- Updated from "/queries/history"
     { params }
   );
   return { data: data.data, meta: data.meta };
 }
 
 export async function toggleFavorite(id: string | number): Promise<{ id: string | number; isFavorite: boolean }> {
+  // CHANGE THIS LINE
   const { data } = await api.patch<{ success: true; data: { id: string | number; isFavorite: boolean } }>(
-    `/queries/history/${id}/favorite`
+    `/history/${id}/favorite` // <--- Updated from "/queries/history/${id}/favorite"
   );
-  return data.data;
+
+  // NOTE: If your backend returns { success: true, isFavorite: true } directly
+  // you might need to adjust the return to match your backend response:
+  return { id, isFavorite: data.data.isFavorite };
 }

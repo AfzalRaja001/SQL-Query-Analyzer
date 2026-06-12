@@ -158,7 +158,7 @@ export default function BenchmarkClient() {
               fontSize: 12, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer",
             }}
           >
-            {loading ? "Running..." : "⚡ Run"}
+            {loading ? "Running..." : "Run"}
           </button>
         </div>
       </div>
@@ -209,7 +209,7 @@ export default function BenchmarkClient() {
       {/* ── Empty state ── */}
       {!result && !loading && !error && (
         <div style={{ textAlign: "center", padding: "60px 0", fontSize: 12, color: "#444" }}>
-          Configure your query above and hit <span style={{ color: "#888" }}>⚡ Run</span> to start benchmarking.
+          Configure your query above and hit <span style={{ color: "#888" }}> Run</span> to start benchmarking.
         </div>
       )}
 
