@@ -17,7 +17,7 @@ if (!process.env.CONNECTION_ENC_KEY || process.env.CONNECTION_ENC_KEY.length !==
 }
 
 const app = express();
-const PORT = 5001;
+const PORT = Number(process.env.PORT) || 5001;
 
 // 1. Security & Logging
 app.use(helmet());
@@ -25,7 +25,7 @@ app.use(morgan("dev"));
 
 // 2. CORS - Allow port 3000 to talk to 5001
 app.use(cors({
-  origin: "http://localhost:3000",
+  origin: process.env.CLIENT_ORIGIN || "http://localhost:3000",
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   credentials: true
 }));
@@ -40,7 +40,7 @@ app.use("/api/v1/connections", connectionRoutes);
 app.get("/", (_req, res) => {
   res.json({
     success: true,
-    message: "SQL Query Analyzer API is running on Port 5001!",
+    message: `SQL Query Analyzer API is running on Port ${PORT}!`,
     version: "1.0.0",
   });
 });
