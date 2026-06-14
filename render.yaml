@@ -1,33 +1,24 @@
-# Render Blueprint for the QueryLab backend (Express + Prisma + Postgres)
-# Deploy: push this file, then in Render -> "New +" -> "Blueprint" -> pick this repo.
-# Render reads this file and provisions the database + web service automatically.
-
-databases:
-  - name: querylab-db
-    plan: free          # free Postgres expires after 30 days; upgrade for persistence
-    databaseName: queryanalyzer
-    user: queryanalyzer
+# Render Blueprint for the QueryLab backend (Express + Prisma).
+# Database lives on Neon — this file only provisions the web service.
+# Deploy: push, then in Render -> "New +" -> "Blueprint" -> pick this repo.
 
 services:
   - type: web
     name: querylab-api
     runtime: node
-    plan: free
+    plan: starter        # "starter" stays awake 24/7; use "free" only for testing (it sleeps)
     rootDir: server      # all commands below run inside ./server
-    # install deps, generate the Prisma client, apply migrations, then compile TS
     buildCommand: npm install && npx prisma generate && npx prisma migrate deploy && npm run build
     startCommand: npm run start
     healthCheckPath: /
     envVars:
-      # Admin connection used by Prisma — auto-wired from the database above
+      # Neon OWNER connection string — Prisma uses it to migrate + write history.
+      # Paste it in the Render dashboard (Connect -> Pooled connection, sslmode=require).
       - key: DATABASE_URL
-        fromDatabase:
-          name: querylab-db
-          property: connectionString
+        sync: false
 
-      # Read-only connection for safe query execution.
-      # Point this at the SAME Render DB (or any reachable Postgres) you want users to query.
-      # Set the value in the Render dashboard after the DB is created.
+      # Neon READ-ONLY connection string (the readonly_user you created).
+      # Used for safe query execution.
       - key: TARGET_DB_URL
         sync: false
 
@@ -35,7 +26,6 @@ services:
       - key: CONNECTION_ENC_KEY
         generateValue: true
 
-      # The deployed frontend origin (your Vercel URL). Fill in after deploying the client.
-      # e.g. https://querylab.vercel.app  (no trailing slash)
+      # Your deployed frontend origin (Vercel URL, no trailing slash). Fill in after Vercel deploy.
       - key: CLIENT_ORIGIN
         sync: false
